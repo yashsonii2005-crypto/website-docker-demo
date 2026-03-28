@@ -37,9 +37,8 @@ pipeline {
             steps {  
 		script{
                 sh '''  
-                    aws ecr get-login-password --region ap-south-1 | 
-  
-                    docker login --username AWS --password-stdin   
+                    aws ecr get-login-password --region ap-south-1 | \  
+                    docker login --username AWS --password-stdin \
                     $317707834474.dkr.ecr.$ap-south-1.amazonaws.com  
                 '''  
             }  
