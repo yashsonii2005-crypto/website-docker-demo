@@ -47,6 +47,22 @@ pipeline {
                 }
             }
         }
+        
+        stage('Deploy to EC2') {
+            steps {
+                script {
+                    sh '''
+                    ssh -o StrictHostKeyChecking=no -i /var/lib/jenkins/deploy-ec2-key.pem ec2-user@65.0.79.239 '
+                        docker stop website || true
+                        docker rm website || true
+                        aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 317707834474.dkr.ecr.ap-south-1.amazonaws.com
+                        docker pull 317707834474.dkr.ecr.ap-south-1.amazonaws.com/website-docker-demo:latest
+                        docker run -d --name website -p 80:80 317707834474.dkr.ecr.ap-south-1.amazonaws.com/website-docker-demo:latest
+                    '
+                    '''
+                }
+            }
+        }
     }
     
     post {
@@ -54,8 +70,7 @@ pipeline {
             echo 'Pipeline completed'
         }
         success {
-            echo 'Docker image pushed successfully to ECR!'
-            echo "Image: ${ECR_REPOSITORY}:${IMAGE_TAG}"
+            echo 'Pipeline succeeded'
         }
         failure {
             echo 'Pipeline failed'
