@@ -1,83 +1,79 @@
-pipeline {  
-    agent any  
-  
-    environment {  
-        AWS_REGION = 'ap-south-1'  
-        ECR_REPO = 'website-docker-demo'  
-        AWS_ACCOUNT_ID = '317707834474'  
-        IMAGE_TAG = "${env.BUILD_NUMBER}"  
-        IMAGE_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"  
-        LATEST_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:latest"  
-        DEPLOY_SERVER = '3.110.120.3'  
-    }  
-  
-    stages {  
-        stage('Checkout') {  
-            steps {  
-                git branch: 'main', url: 'https://github.com/yashsonii2005-crypto/website-docker-demo.git'  
-            }  
-        }  
-  
-        stage('Build Docker Image') {  
-            steps {  
-                sh 'docker build -t website-docker-demo .'  
-            }  
-        }  
-  
-        stage('Tag Docker Image') {  
-            steps {  
-                sh '''  
-                    docker tag website-docker-demo:latest $IMAGE_URI  
-                    docker tag website-docker-demo:latest $LATEST_URI  
-                '''  
-            }  
-        }  
-  
-        stage('Login to ECR') {  
-            steps {  
-		script{
-                sh '''  
-                    aws ecr get-login-password --region ap-south-1 | \  
-                    docker login --username AWS --password-stdin \
-                    $317707834474.dkr.ecr.$ap-south-1.amazonaws.com  
-                '''  
-            }  
+pipeline {
+    agent any
+    
+    environment {
+        AWS_REGION = 'ap-south-1'
+        ECR_REPOSITORY = '317707834474.dkr.ecr.ap-south-1.amazonaws.com/website-docker-demo'
+        IMAGE_TAG = '${BUILD_NUMBER}'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/yashsonii2005-crypto/website-docker-demo.git'
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh 'docker build -t website-docker-demo .'
+                }
+            }
+        }
+        
+        stage('Tag Docker Image') {
+            steps {
+                script {
+                    sh "docker tag website-docker-demo:latest ${ECR_REPOSITORY}:${IMAGE_TAG}"
+                    sh "docker tag website-docker-demo:latest ${ECR_REPOSITORY}:latest"
+                }
+            }
+        }
+        
+        stage('Login to ECR') {
+            steps {
+                script {
+                    sh 'aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 317707834474.dkr.ecr.ap-south-1.amazonaws.com'
+                }
+            }
+        }
+        
+        stage('Push Image to ECR') {
+            steps {
+                script {
+                    sh "docker push ${ECR_REPOSITORY}:${IMAGE_TAG}"
+                    sh "docker push ${ECR_REPOSITORY}:latest"
+                }
+            }
+        }
+        
+        stage('Deploy to EC2') {
+            steps {
+                script {
+                    sh '''
+                    ssh -o StrictHostKeyChecking=no -i /var/lib/jenkins/deploy-ec2-key.pem ec2-user@65.0.79.239 '
+                        docker stop website || true
+                        docker rm website || true
+                        aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 317707834474.dkr.ecr.ap-south-1.amazonaws.com
+                        docker pull 317707834474.dkr.ecr.ap-south-1.amazonaws.com/website-docker-demo:latest
+                        docker run -d --name website -p 80:80 317707834474.dkr.ecr.ap-south-1.amazonaws.com/website-docker-demo:latest
+                    '
+                    '''
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo 'Pipeline completed'
+        }
+        success {
+            echo 'Pipeline succeeded'
+        }
+        failure {
+            echo 'Pipeline failed'
+        }
+    }
 }
-        }  
-  
-        stage('Push Image to ECR') {  
-            steps {  
-                sh '''  
-                    docker push $IMAGE_URI  
-                    docker push $LATEST_URI  
-                '''  
-            }  
-        }  
-  
-        stage('Deploy to EC2') {  
-            steps {  
-                sshagent(['deploy-ec2-key']) {  
-                    sh '''  
-                        ssh -o StrictHostKeyChecking=no ubuntu@$DEPLOY_SERVER "  
-                        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com &&  
-                        docker pull $LATEST_URI &&  
-                        docker stop website-demo || true &&  
-                        docker rm website-demo || true &&  
-                        docker run -d --name website-demo -p 80:80 $LATEST_URI  
-                        "  
-                    '''  
-                }  
-            }  
-        }  
-    }  
-  
-    post {  
-        success {  
-            echo 'Website deployed successfully'  
-        }  
-        failure {  
-            echo 'Pipeline failed'  
-        }  
-    }  
-}
-
