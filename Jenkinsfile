@@ -35,13 +35,15 @@ pipeline {
   
         stage('Login to ECR') {  
             steps {  
+		script{
                 sh '''  
-                    aws ecr get-login-password --region $AWS_REGION | 
+                    aws ecr get-login-password --region ap-south-1 | 
   
                     docker login --username AWS --password-stdin   
-                    $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com  
+                    $317707834474.dkr.ecr.$ap-south-1.amazonaws.com  
                 '''  
             }  
+}
         }  
   
         stage('Push Image to ECR') {  
